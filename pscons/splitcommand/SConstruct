@@ -1,0 +1,58 @@
+from rsf.proj import *
+
+par = dict(dx=0.005,dz=0.005,
+           minx=0,maxx=45,
+           minz=0,maxz=6,
+           f=40,nt=500,dt=0.0005,
+           sx=0.25,sz=0.01,rz=0.01,
+           jsnap=1,jdata=1,nx=101,nz=101)
+
+par['kt'] = 1.2/(par['dt']*par['f'])
+
+Flow('velocity',None,'''  spike n1=101 n2=101 d1=0.005 d2=0.005 nsp=2 k1=1,71 l1=70,101 mag=3,3.3 ''') 
+Flow('density',None,'''  math n1=101 n2=101 d1=0.005 d2=0.005 output='2' ''') 
+Flow('wav',None,'spike n1=%(nt)d d1=%(dt)g o1=0 k1=%(kt)d | ricker1 frequency=%(f)d ' %par )
+
+Flow('rx',None,'math n1=%(nx)d d1=%(dx)g o1=%(minx)g output=x1' %par)
+Flow('rz',None,'math n1=%(nx)d d1=%(dx)g o1=%(minx)g output=%(rz)g' %par)
+Flow('receivers','rx rz','cat axis=2 ${SOURCES[1]} | transp')
+Plot('velocity','grey color=j mean=y scalebar=y title="Velocity Model subsection"')
+
+Flow('elasticwavelet','wav','put n2=1 n3=1 | transp plane=13 | pad n2=2')
+Flow('c11','velocity density','math vp=${SOURCES[0]} den=${SOURCES[1]} output="den*vp^2" | smooth rect1=4 rect2=4 repeat=3')
+Flow('Vs','velocity','math vp=${SOURCES[0]} output="vp/sqrt(3)" ')
+Flow('c55','Vs density','math vs=${SOURCES[0]} den=${SOURCES[1]} output="den*vs^2" | smooth rect1=4 rect2=4 repeat=3')
+Flow('c33','c11','cp')
+Flow('c13','c11 c55','math c11=${SOURCES[0]} c55=${SOURCES[1]} output="c11-2*c55" ')
+Flow('ccc','c11 c33 c55 c13','cat axis=3 ${SOURCES[1:4]} ')
+
+Result('velocity', '''grey mean=y title='' allpos=y color=b screenratio=1 wantaxis=y label1=z
+       unit1=km label2=x unit2=km labelsz=10 labelfat=5 ''')
+
+#shot configuration in coordinate
+nshot=2
+shot0=0
+dshot=0.5
+
+Flow('sz',None,'math n1=1 output=%(sz)g' %par)
+for i in range (1,nshot+1):
+    isx = shot0 + (i-1)*dshot
+    print isx
+    Flow('sx-%d'%(i),None,'math n1=1 output=%g'%(isx))
+    Flow('source-%d'%(i),'sx-%d sz'%(i),'cat axis=1 ${SOURCES[1]}')
+    Flow('erecfield-%d ewavefield-%d'%(i,i),'elasticwavelet density receivers source-%d ccc'%(i),
+         '''
+         ewefd2d
+         den=${SOURCES[1]}
+         rec=${SOURCES[2]}
+         sou=${SOURCES[3]}
+         ccc=${SOURCES[4]}
+         wfl=${TARGETS[1]}
+         dabc=y snap=y verb=y jsnap=%(jsnap)d jdata=%(jdata)d
+         ssou=y nb=20 nbell=11
+         ''' %par)
+    Result('ewavefield-%d'%(i),''' window n3=1 f3=1 n4=1 f4=400 | grey mean=y gainpanel=all title='' allpos=y 
+           color=b screenratio=1 wantaxis=y label1=z unit1=km label2=x unit2=km labelsz=10 
+           labelfat=5 ''')
+
+End()

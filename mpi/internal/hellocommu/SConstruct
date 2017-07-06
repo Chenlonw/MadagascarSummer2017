@@ -1,0 +1,14 @@
+from rsf.proj import *
+
+if not WhereIs('mpirun'):
+    sys.stderr.write("\nNo MPI.\n")
+    sys.exit(1)
+
+NP = int(ARGUMENTS.get('NP','2'))
+
+Flow('out',None,
+        '''
+        sfmpihellocommu -hostfile=hostfile
+        ''',np=NP,stdin=0,stdout=-1)
+
+End()

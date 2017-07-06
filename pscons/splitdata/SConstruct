@@ -1,0 +1,23 @@
+from rsf.proj import *
+
+Fetch('mona.img','imgs')
+Flow('mona','mona.img', 
+     ''' 
+     echo n1=512 n2=513 in=$SOURCE data_format=native_uchar | dd type=float |
+     window n1=512 n2=512 | sftransp | math output="input/1000" 
+     ''',stdin=0)
+Result('mona', '''grey allpos=y title="Mona Lisa" color=b screenratio=1 wantaxis=n''')
+
+Fetch('marmvel.hh','marm')
+Flow('mar','marmvel.hh', 
+     '''
+     dd form=native | window j1=1 j2=2 f2=800 n2=512 f1=0 n1=512|
+     scale dscale=0.001 |
+     put label1=Depth unit1=km label2=Distance unit2=km | math output="input/4.45"
+     ''')
+Result('mar', '''grey allpos=y title="Marmousi" color=b screenratio=1 wantaxis=n''')
+
+Flow('monamousi','mar mona','math b=${SOURCES[1]} output="input+b"', split=[2,256])
+Result('monamousi', '''grey allpos=y title="Monamousi" color=b screenratio=1 wantaxis=n''')
+
+End()
